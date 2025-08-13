@@ -99,9 +99,10 @@ plt.show()
 
 *La imagen está formada por 6375 de ancho x 10625 de alto. Cada cuadricula son 2125 x 2125 pixeles.*
 
-> Al intentar correr el algoritmo de clustering con esta imagen, esto era demasiado pesado y la memoria no lo permitía, con lo que nos vimos en la situacion de reducirla a las tiles que componen la imagen.
+### TILES
+Al intentar correr el algoritmo de clustering con esta imagen, esto era demasiado pesado y la memoria no lo permitía, con lo que nos vimos en la situacion de reducirla a las tiles que componen la imagen.
 
-### Estrategia para obtener TILES
+#### Estrategia para obtener las tiles
 
 1. Leer el archivo procesado (procesadosB1-2.csv).
 2. Obtener los valores mínimos y máximos de x e y.
@@ -181,6 +182,7 @@ for (fila, col), tile_rows in sorted(tiles.items()):
 print(f"\nTiles guardados en: {output_dir}")
 ```
 
+#### Resultados
 ```
 Tile 1_1: 104915 coordenadas, 97 genes expresados
 Tile 1_2: 125673 coordenadas, 94 genes expresados
@@ -337,7 +339,7 @@ mask = df_expr[genes_existentes].astype(int).sum(axis=1) > 0
 df_filtrado = df_expr[mask].copy() 
 ```
 
-#### Colores para genes
+#### Colores para genes clave
 
 ```py
 genes_coloreados = {
@@ -348,49 +350,49 @@ genes_coloreados = {
     'Aqp4': '#ADD8E6',         # azul muy claro
     'Sparcl1': '#5DADE2',      # azul vibrante
 
-    # Neurons / Melanoma (morado)
-    'Map2': '#8e44ad',         # morado oscuro
-    'Nefm': '#9b59b6',         # morado medio
-    'Nsg2': '#BB8FCE',         # morado claro
-    'Rbfox3': '#C39BD3',
-    'Trem2': '#D7BDE2',
+    # Neurons / Melanoma (marrón claro)
+    'Map2': '#8e44ad',         # morado oscuro (mantener)
+    'Nefm': '#9b59b6',         # morado medio (mantener)
+    'Nsg2': '#BB8FCE',         # morado claro (mantener)
+    'Rbfox3': '#C39BD3',       # morado claro (mantener)
+    'Trem2': '#D7BDE2',        # morado muy claro (mantener)
 
-    # Melanoma (naranja)
-    'Dct': '#e67e22',
-    'Mitf': '#f39c12',
-    'Pmel': '#f4a261',
-    'Slc7a5': '#e59866',
+    # Melanoma (marrones claros)
+    'Dct': 'saddlebrown',   
+    'Mitf': 'chocolate', 
+    'Pmel': 'peru',  
+    'Slc7a5': 'sandybrown',
 
     # T cells (rojos)
-    'Cd4': '#c0392b',
-    'Foxp3': '#e74c3c',
-    'Cd8a': '#ff6f61',
-    'Cd3e': '#e57373',
+    'Cd4': '#B71C1C',
+    'Foxp3': '#C62828',
+    'Cd8a': '#D32F2F',
+    'Cd3e': '#E53935',
 
-    # B cells (granate)
-    'Cd19': '#800000',
+    # B cells (rojos)
+    'Cd19': '#F44336',
+
+    # NK cells (rojos)
+    'Klrg1': '#E53935',
+    'Nkx1-1': '#F44336',
+
+    # Leukocytes (rojos)
+    'Ptprc': '#EF5350',
 
     # Dendritic cells (verde oscuro)
     'Flt3': '#145A32',
     'Itgae': '#1E8449',
     'Itgax': '#27AE60',
 
-    # Leukocytes (gris oscuro)
-    'Ptprc': '#566573',
-
     # Microglia (verde oliva)
     'P2ry12': '#7D6608',
     'Tmem119': '#B7950B',
 
-    # Mieloides (marrón)
-    'Cd24a': '#784212',
-    'Itgam': '#935116',
-    'Ly6g': '#A04000',
-    'Adgre1': '#CA6F1E',
-
-    # NK cells (rosado)
-    'Klrg1': '#C2185B',
-    'Nkx1-1': '#E91E63',
+    # Mieloides (amarillos)
+    'Cd24a': '#FBC02D',        # amarillo fuerte
+    'Itgam': '#FDD835',        # amarillo medio
+    'Ly6g': '#FFF176',         # amarillo suave
+    'Adgre1': '#FFF9C4',       # amarillo muy pálido
 
     # Oligodendrocytes (cian)
     'Mog': '#17A589',
@@ -407,92 +409,7 @@ genes_coloreados = {
 #### Funcion para clustering
 
 ```py
-def cluster_and_plot_cells_with_genes(df, genes_coloreados, 
-                                      distance_threshold=60, alpha_val=0.05):
-    """
-    Clustering espacial + overlay de genes coloreados + alpha shapes por cluster
-    """
 
-    # Filtrar datos
-    subset = df[(df['batch_nr'] == batch) & (df['Dataset'] == dataset)].copy()
-    if subset.empty:
-        print(f"No data found for batch '{batch}' and dataset '{dataset}'.")
-        return None
-
-    # Clustering jerárquico
-    coords = subset[['Coordenada X', 'Coordenada Y']]
-    
-    # Conectividad basada en vecinos más cercanos
-    clustering = AgglomerativeClustering(
-        n_clusters=None,
-        distance_threshold=distance_threshold,
-        linkage='average'
-    )
-    labels = clustering.fit_predict(coords)
-    subset['cluster'] = labels
-
-    print(f"Number of clusters found: {len(set(labels))}")
-
-    # === PLOTEO ===
-    fig, ax = plt.subplots(figsize=(8, 8))
-
-    # 1) Todos los puntos en gris
-    ax.scatter(
-        subset['Coordenada X'],
-        subset['Coordenada Y'],
-        s=1,
-        color='grey',
-        label='otros genes'
-    )
-
-    # 2) Genes coloreados
-    for gene, color in genes_coloreados.items():
-        if gene not in df.columns:
-            print(f"[AVISO] Gen {gene} no está en el DataFrame.")
-            continue
-        subset_gene = subset[subset[gene] == 1]
-        ax.scatter(
-            subset_gene['Coordenada X'],
-            subset_gene['Coordenada Y'],
-            s=1,
-            color=color,
-            label=gene
-        )
-
-    # 3) Dibujar contornos de los clusters
-    for clust_id in subset['cluster'].unique():
-        clust_data = subset[subset['cluster'] == clust_id]
-        points = clust_data[['Coordenada X', 'Coordenada Y']].values
-
-        if len(points) < 4:
-            continue
-
-        try:
-            shape = alphashape.alphashape(points, alpha_val)
-            shapes = [shape] if isinstance(shape, Polygon) else shape.geoms
-
-            for geom in shapes:
-                x, y = geom.exterior.xy
-                ax.plot(x, y, color='black', linewidth=1)
-        except Exception as e:
-            print(f"Alpha shape failed for cluster {clust_id}: {e}")
-
-    # 4) Estetica de visualización
-    ax.legend(markerscale=3, fontsize='small', loc='upper left', frameon=True)
-    ax.set_title(f"Segmentación celular tile_{tile_id[0]}_{tile_id[1]}_{tile_id[2]}")
-    ax.set_xlabel("Coordenada X")
-    ax.set_ylabel("Coordenada Y")
-    plt.tight_layout()
-    plt.show()
-
-    return subset
-
-
-clustered_df = cluster_and_plot_cells_with_genes(
-    df_filtrado,
-    genes_coloreados=genes_coloreados,
-    distance_threshold=60
-)
 ```
 
 <img width="640" height="636" alt="image" src="https://github.com/user-attachments/assets/b2b2cde4-dc98-4eab-9015-496071feda4e" />
