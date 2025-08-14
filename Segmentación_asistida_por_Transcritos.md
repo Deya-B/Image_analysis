@@ -745,7 +745,17 @@ clustered = cluster_and_plot_scaled(
 
 ### Resultados
 
-<img width="640" height="636" alt="image" src="https://github.com/user-attachments/assets/c0c62d20-8662-4a15-bf82-ec7b159b28b8" />
+
+<p align="center">
+  <img width="400" height="400" src="https://github.com/user-attachments/assets/c0c62d20-8662-4a15-bf82-ec7b159b28b8" />
+</p>
+
+<p align="center">
+  <img width="350" height="350" src="https://github.com/user-attachments/assets/0be44cb1-53ae-4c99-9512-d8fd240db053" />
+</p>
+
+Se muestra la segmentación y debajo la imágen del DAPI con los nucleos correspondientes a esa SUBTILE.
+
 
 ```py
 
