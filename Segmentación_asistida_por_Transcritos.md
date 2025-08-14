@@ -312,9 +312,9 @@ plt.show()
 
 <img width="490" height="490" alt="image" src="https://github.com/user-attachments/assets/6ffa6ba5-d74c-4b78-846f-c605b4d3a7a6" />
 
-### Clustering
+## Clustering
 
-#### Gene selection + Sample selection
+### Gene selection + Sample selection
 ```py
 # Genes a usar 
 genes_interes = ['Gfap','Nefm','Map2','Aldh1l1','Aldoc','Aqp4','Foxp3','Cd8a', 'Sparcl1', 
@@ -339,7 +339,7 @@ mask = df_expr[genes_existentes].astype(int).sum(axis=1) > 0
 df_filtrado = df_expr[mask].copy() 
 ```
 
-#### Colores para genes clave
+### Colores para genes clave
 
 ```py
 genes_coloreados = {
@@ -406,27 +406,126 @@ genes_coloreados = {
 }
 ```
 
-#### Funcion para clustering
+### Funcion para clustering
 
 ```py
+def cluster_and_plot_cells_with_genes(df, batch, dataset, genes_coloreados, 
+                                      distance_threshold=60, alpha_val=0.05):
+    """
+    Clustering espacial + overlay de genes coloreados + alpha shapes por cluster
+    """
 
+    # Filtrar datos
+    subset = df[(df['batch_nr'] == batch) & (df['Dataset'] == dataset)].copy()
+    if subset.empty:
+        print(f"No data found for batch '{batch}' and dataset '{dataset}'.")
+        return None
+
+    # Clustering jerárquico
+    coords = subset[['Coordenada X', 'Coordenada Y']]
+    
+    # Conectividad basada en vecinos más cercanos
+    clustering = AgglomerativeClustering(
+        n_clusters=None,
+        distance_threshold=distance_threshold,
+        linkage='average'
+    )
+    labels = clustering.fit_predict(coords)
+    subset['cluster'] = labels
+
+    print(f"Number of cells found: {len(set(labels))}")
+
+    # === PLOTEO ===
+    fig, ax = plt.subplots(figsize=(8, 8))
+
+    # 1) Todos los puntos en gris
+    ax.scatter(
+        subset['Coordenada X'],
+        subset['Coordenada Y'],
+        s=1
+    )
+
+    # 2) Genes coloreados
+    for gene, color in genes_coloreados.items():
+        if gene not in df.columns:
+            print(f"[AVISO] Gen {gene} no está en el DataFrame.")
+            continue
+        subset_gene = subset[subset[gene] == 1]
+        ax.scatter(
+            subset_gene['Coordenada X'],
+            subset_gene['Coordenada Y'],
+            s=1,
+            color=color,
+            label=gene
+        )
+
+    # 3) Dibujar contornos de los clusters
+    for clust_id in subset['cluster'].unique():
+        clust_data = subset[subset['cluster'] == clust_id]
+        points = clust_data[['Coordenada X', 'Coordenada Y']].values
+
+        if len(points) < 4:
+            continue
+
+        try:
+            shape = alphashape.alphashape(points, alpha_val)
+            shapes = [shape] if isinstance(shape, Polygon) else shape.geoms
+
+            for geom in shapes:
+                x, y = geom.exterior.xy
+                ax.plot(x, y, color='black', linewidth=1)
+        except Exception as e:
+            print(f"Alpha shape failed for cluster {clust_id}: {e}")
+
+    # 4) Estetica de visualización
+    # Guardar como PNG sin bordes ni leyenda, con fondo transparente
+    ax.set_title('')
+    ax.set_xlabel('')
+    ax.set_ylabel('')
+    ax.set_xticks([])
+    ax.set_yticks([])
+
+    # Eliminar bordes (spines)
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+
+    plt.savefig(
+        f"cluster_plot_tile_{tile_id[0]}_{tile_id[1]}_{tile_id[2]}.png",
+        dpi=300,
+        transparent=True,
+        bbox_inches='tight',
+        pad_inches=0
+    )
+
+    plt.show()
+
+    return subset
+
+
+clustered_df = cluster_and_plot_cells_with_genes( 
+    df_filtrado, 
+    batch='B1', 
+    dataset='slide1', 
+    genes_coloreados=genes_coloreados, 
+    distance_threshold=75 
+) 
 ```
 
-<img width="640" height="636" alt="image" src="https://github.com/user-attachments/assets/b2b2cde4-dc98-4eab-9015-496071feda4e" />
+<img width="640" height="636" alt="image" src="https://github.com/user-attachments/assets/55ff716a-81e9-4ec5-bcfe-d2cf2c05ca2e" />
 
 > Los resultados no son óptimos, se mezclan distintos genes en el mismo cluster y los tamaños no concuerdan con lo que esperaríamos.
 > Lo que ocurre es que hasta ahora estamos agrupando solo teniendo en cuenta la distribución espacial de las coordenadas, no los genes persé. Los cuales representan los tipos celulares. Necesitamos introducir la agrupación génica.
 > Probamos con una matriz de conectividad sin exito, con lo que lo siguiente es normalizar y añadir los genes expresados.
 
-### Agrupación espacial + Génica
+## Añadiendo la Agrupación Espacial + Génica
 
-Como hasta ahora hemos hecho un clustering espacial, basado en coordenadas unicamente.
+Hasta ahora hemos hecho un clustering espacial, basado en coordenadas unicamente.
 
 ```py
 coords = subset[['Coordenada X', 'Coordenada Y']]
 ```
 
-NO debíamos normalizar, porque las coordenadas espaciales (x,y) representan posiciones reales en el tejido y su escala es significativa. Si las normalizamos, distorsionamos las distancias físicas entre células. 
+Para ésto no necesitabamos normalizar, porque las coordenadas espaciales (x,y) representan posiciones reales en el tejido y su escala es significativa. Si las normalizamos, distorsionamos las distancias físicas entre células. 
 
 Pero para añadir la clusterización génica hay que normalizar los datos.
 
@@ -449,143 +548,208 @@ Entonces la "distancia" entre dos células será una combinación de:
 
 Y el objetivo es que ninguna variable domine la distancia total. 
 
-> Tras varios intentos con distintos parámetros no se obtenía nada óptimo. Probamos con ponderar los genes escalados para que tengan mayor peso de cara al clustering, pero tampoco obtuvimos mucho.
+Tras varios intentos con distintos parámetros no se obtenía nada óptimo. Probamos a ponderar los genes escalados para que tengan mayor peso de cara al clustering, y jugando con los distintos parámetros finalmente obtuvimos algo con lo que creemos que podemos avanzar a los análisis de vecinos y otros:
 
+### Reajuste de colores para ver linfocitos y otras células más claramente
 ```py
-# Selección de columnas
-coords_cols = ['Coordenada X', 'Coordenada Y']
-gene_cols = genes_existentes
+genes_coloreados = {
+    # Astrocytes (azules)
+    'Gfap': '#1f77b4',         # azul oscuro
+    'Aldh1l1': '#4F9ED2',      # azul medio
+    'Aldoc': '#77B7E5',        # azul claro
+    'Aqp4': '#ADD8E6',         # azul muy claro
+    'Sparcl1': '#5DADE2',      # azul vibrante
 
-# Escalar coordenadas
-scaler_coords = StandardScaler()
-coords_scaled = scaler_coords.fit_transform(df_filtrado[coords_cols].astype(float))
+    # Neurons / Melanoma (marrón claro)
+    'Map2': '#8e44ad',         # morado oscuro (mantener)
+    'Nefm': '#9b59b6',         # morado medio (mantener)
+    'Nsg2': '#BB8FCE',         # morado claro (mantener)
+    'Rbfox3': '#C39BD3',       # morado claro (mantener)
+    'Trem2': '#D7BDE2',        # morado muy claro (mantener)
 
-# Escalar genes
-scaler_genes = StandardScaler()
-genes_scaled = scaler_genes.fit_transform(df_filtrado[gene_cols].astype(float))
+    # Melanoma (marrones claros)
+    'Dct': 'saddlebrown',   
+    'Mitf': 'chocolate', 
+    'Pmel': 'peru',  
+    'Slc7a5': 'sandybrown',
 
-# Ponderación de genes escalados
-ponderacion = 5  # o el valor deseado
-genes_scaled *= ponderacion
+    # T cells (rojos)
+    'Cd4': '#B71C1C',
+    'Foxp3': '#C62828',
+    'Cd8a': '#D32F2F',
+    'Cd3e': '#E53935',
 
-# Concatenar
-import numpy as np
-features_scaled = np.concatenate([coords_scaled, genes_scaled], axis=1)
+    # B cells (rojos)
+    'Cd19': '#F44336',
 
-# Agregar al DataFrame
-for i, col in enumerate(coords_cols + gene_cols):
-    df_filtrado[f"{col}_scaled"] = features_scaled[:, i]
+    # NK cells (rojos)
+    'Klrg1': '#E53935',
+    'Nkx1-1': '#F44336',
+
+    # Leukocytes (rojos)
+    'Ptprc': '#EF5350',
+
+    # Dendritic cells (verde oscuro)
+    'Flt3': '#145A32',
+    'Itgae': '#1E8449',
+    'Itgax': '#27AE60',
+
+    # Microglia (verde oliva)
+    'P2ry12': '#7D6608',
+    'Tmem119': '#B7950B',
+
+    # Mieloides (amarillos)
+    'Cd24a': '#FBC02D',        # amarillo fuerte
+    'Itgam': '#FDD835',        # amarillo medio
+    'Ly6g': '#FFF176',         # amarillo suave
+    'Adgre1': '#FFF9C4',       # amarillo muy pálido
+
+    # Oligodendrocytes (cian)
+    'Mog': '#17A589',
+    'Olig1': '#48C9B0',
+
+    # Vasculature (negro y grises)
+    'Acta2': '#212121',
+    'Fn1': '#616161',
+    'Myh11': '#9E9E9E',
+    'Pecam1': '#BDBDBD'
+}
 ```
 
-
+### Librerias necesarias
 ```py
-def cluster_and_plot_scaled(df, batch, dataset, genes_coloreados,
-                            distance_threshold=2.5, alpha_val=0.1):
-    subset = df[(df['batch_nr'] == batch) & (df['Dataset'] == dataset)].copy()
-    if subset.empty:
-        print("No data found")
-        return None
+import pandas as pd
+from sklearn.preprocessing import StandardScaler
+from sklearn.cluster import AgglomerativeClustering
+from sklearn.neighbors import radius_neighbors_graph
+import alphashape
+from shapely.geometry import Polygon
+import matplotlib.pyplot as plt
+import numpy as np
+```
 
-    # Usamos X_scaled, Y_scaled para conectividad y clustering  
-    coords_cols_scaled = [f"{col}_scaled" for col in ['Coordenada X', 'Coordenada Y']]
-    gene_cols_scaled = [f"{col}_scaled" for col in gene_cols]
+### Configuración inicial
+```py
+tile_id = (2, 2, "D") 
+df = pd.read_csv(f"C:\\Users\\DB.224518\\Desktop\\practicas\\tiles_B1-2\\tile_{tile_id[0]}_{tile_id[1]}_subtiles\\tile_{tile_id[0]}_{tile_id[1]}_{tile_id[2]}.csv") 
+# df = pd.read_csv(f"C:\\Users\\DB.224518\\Desktop\\practicas\\tiles_B1-2\\tile_2_2.csv")
 
-    # Clustering con genes escalados también combinados
-    feature_cols = coords_cols_scaled + gene_cols_scaled
+# Lista de genes de interés
+genes_interes = ['Gfap','Nefm','Aldh1l1','Aqp4','Foxp3','Cd8a', 'Map2','Aldoc', 'Sparcl1',
+                 'Flt3','Itgae','Itgax','Ptprc','Dct','Mitf','Pmel','Slc7a5','P2ry12','Cd3e','Cd4',
+                 'Tmem119','Cd24a','Itgam','Ly6g','Adgre1','Nsg2','Rbfox3','Trem2','Klrg1',
+                 'Nkx1-1','Mog','Olig1','Acta2','Fn1','Myh11','Pecam1'] # sin 
+
+genes_existentes = [g for g in genes_interes if g in df.columns]
+if not genes_existentes:
+    raise ValueError("Ninguno de los genes indicados está presente en el archivo.")
+
+mask = df[genes_existentes].astype(int).sum(axis=1) > 0
+df_filtrado = df[mask].copy()
+```
+
+### Función para agrupación
+```py
+def cluster_and_plot_scaled(df, genes_coloreados, distance_threshold=2.5, alpha_val=0.1):
+        
+    coords = df_filtrado[['x', 'y']].values
+    gene_cols = df.drop(columns=['x', 'y']).select_dtypes(include=[np.number]).columns
+    genes = df[gene_cols].values
+
+    # Escalar por separado
+    scaler_coords = StandardScaler()
+    coords_scaled = scaler_coords.fit_transform(coords)
+
+    scaler_genes = StandardScaler()
+    genes_scaled = scaler_genes.fit_transform(genes)
+
+    # Ponderar espacial
+    peso_espacial = 15
+    coords_scaled *= peso_espacial
+
+    # Combinar
+    features = np.hstack([coords_scaled, genes_scaled])
+
+    # Clustering
     clustering = AgglomerativeClustering(
         n_clusters=None,
         distance_threshold=distance_threshold,
         linkage='average'
     )
-    labels = clustering.fit_predict(subset[feature_cols])
-    subset['cluster'] = labels
+    labels = clustering.fit_predict(features)
+    df['cluster'] = labels
 
     print("Number of clusters:", len(set(labels)))
 
-    # Plot en coordenadas originales
+    # Plot
     fig, ax = plt.subplots(figsize=(8,8))
-    ax.scatter(subset['Coordenada X'], subset['Coordenada Y'], s=1, color='grey')
+    ax.set_facecolor('white')
 
+    # Genes coloreados
     for gene, color in genes_coloreados.items():
         if gene not in df.columns:
             continue
-        sg = subset[subset[gene] == 1]
-        ax.scatter(sg['Coordenada X'], sg['Coordenada Y'], s=1, color=color, label=gene)
+        sg = df[df[gene] == 1]
+        ax.scatter(sg['x'], sg['y'], s=0.5, color=color, label=gene, alpha=0.5)
 
-    for cl in subset['cluster'].unique():
-        pts = subset[subset['cluster'] == cl][['Coordenada X','Coordenada Y']].values
-        if len(pts) < 4: continue
-        try:
-            shp = alphashape.alphashape(pts, alpha_val)
-            geoms = [shp] if isinstance(shp, Polygon) else shp.geoms
-            for g in geoms:
-                x,y = g.exterior.xy
-                ax.plot(x,y, color='black', linewidth=1)
-        except Exception as e:
-            print(f"Alpha fail {cl}: {e}")
-
-    # === Visualización ===
-    plt.figure(figsize=(10, 10))
-    ax = plt.gca()
-    ax.set_facecolor('white')
-
-    # --- Puntos de cada gen ---
-    for gene in genes_coloreados:
-        subset = df_filtrado[df_filtrado[gene] > 0]
-        ax.scatter(subset['Coordenada X'], subset['Coordenada Y'], 
-                s=0.5, label=gene, alpha=0.5, color=gene_colors[gene])
-
-    # --- Contornos por gen dominante ---
-    for cl in sorted(df_filtrado['cluster'].unique()):
-        if cl == -1:
-            continue  # ruido
-        cluster_points = df_filtrado[df_filtrado['cluster'] == cl]
-        puntos = cluster_points[['Coordenada X', 'Coordenada Y']].values
-        if len(puntos) < 20:
+    # Contornos por cluster
+    for cl in sorted(df['cluster'].unique()):
+        cluster_points = df[df['cluster'] == cl]
+        if len(cluster_points) < 8:
             continue
         
-        # Gen dominante
-        gene_counts = {gene: cluster_points[gene].sum() for gene in genes_coloreados}
+        # Gen dominante en el cluster
+        gene_counts = {gene: cluster_points[gene].sum() for gene in gene_cols}
         gen_dominante = max(gene_counts, key=gene_counts.get)
-        color_contorno = gene_colors[gen_dominante]
+        color_contorno = genes_coloreados.get(gen_dominante, 'black')
 
         # Contorno con alphashape
         try:
-            alpha_value = 0.1  # más alto → contorno más simple
-            alpha_shape = alphashape.alphashape(puntos, alpha=alpha_value)
+            puntos = cluster_points[['x', 'y']].values
+            alpha_shape = alphashape.alphashape(puntos, alpha=alpha_val)
             if alpha_shape.is_empty:
                 continue
             if isinstance(alpha_shape, Polygon):
                 xs, ys = alpha_shape.exterior.xy
-                ax.plot(xs, ys, color=color_contorno, linewidth=2.5)
+                ax.plot(xs, ys, color=color_contorno, linewidth=1.2)
             else:
                 for geom in alpha_shape.geoms:
                     xs, ys = geom.exterior.xy
-                    ax.plot(xs, ys, color=color_contorno, linewidth=2.5)
-
-    except Exception as e:
-        print(f"Cluster {cl} alphashape failed: {e}")
-
+                    ax.plot(xs, ys, color=color_contorno, linewidth=1.2)
+        except Exception as e:
+            print(f"Cluster {cl} alphashape failed: {e}")
 
     ax.set_xticks([]); ax.set_yticks([])
     for sp in ax.spines.values():
         sp.set_visible(False)
 
+    plt.legend(markerscale=5, fontsize=6)
     plt.savefig(f"cluster_scaled_tile.png", dpi=300, transparent=True, bbox_inches='tight', pad_inches=0)
     plt.show()
 
-    return subset
+    return df
+```
+
+### Ejecución del cluster
+```py
+clustered = cluster_and_plot_scaled( 
+    df_filtrado,
+    genes_coloreados=genes_coloreados, 
+    distance_threshold=7,
+    alpha_val=0.03
+)
+```
+
+### Resultados
+
+<img width="640" height="636" alt="image" src="https://github.com/user-attachments/assets/c0c62d20-8662-4a15-bf82-ec7b159b28b8" />
+
+```py
+
 ```
 
 ```py
-clustered = cluster_and_plot_scaled( 
-    df_filtrado, 
-    batch='B1', 
-    dataset='slide1', 
-    genes_coloreados=genes_coloreados, 
-    distance_threshold=1.5,
-    alpha_val=0.05
-)
+
 ```
 
 
