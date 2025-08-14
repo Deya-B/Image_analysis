@@ -211,7 +211,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 tile_id = (2, 2)
-subtile_file = f"C:\\Users\\deyan\\Desktop\\BIOINFORMÁTICA\\PracticasIIBM\\tile_{tile_id[0]}_{tile_id[1]}.csv"
+subtile_file = f"C:\\Users\\user\\Escritorio\\practicas\\tile_{tile_id[0]}_{tile_id[1]}.csv"
 
 # Cargar archivo generado
 file1 = pd.read_csv(subtile_file)
@@ -296,7 +296,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 tile_id = (2, 2, "D")
-subtile_file = f"C:\\Users\\deyan\\Desktop\\BIOINFORMÁTICA\\PracticasIIBM\\tile_{tile_id[0]}_{tile_id[1]}_subtiles\\tile_{tile_id[0]}_{tile_id[1]}_{tile_id[2]}.csv"
+subtile_file = f"C:\\Users\\user\\Escritorio\\practicas\\tile_{tile_id[0]}_{tile_id[1]}_subtiles\\tile_{tile_id[0]}_{tile_id[1]}_{tile_id[2]}.csv"
 
 # Cargar archivo generado
 file1 = pd.read_csv(subtile_file)
@@ -514,8 +514,10 @@ clustered_df = cluster_and_plot_cells_with_genes(
 <img width="640" height="636" alt="image" src="https://github.com/user-attachments/assets/55ff716a-81e9-4ec5-bcfe-d2cf2c05ca2e" />
 
 > Los resultados no son óptimos, se mezclan distintos genes en el mismo cluster y los tamaños no concuerdan con lo que esperaríamos.
+> 
 > Lo que ocurre es que hasta ahora estamos agrupando solo teniendo en cuenta la distribución espacial de las coordenadas, no los genes persé. Los cuales representan los tipos celulares. Necesitamos introducir la agrupación génica.
-> Probamos con una matriz de conectividad sin exito, con lo que lo siguiente es normalizar y añadir los genes expresados.
+> 
+> Probamos con una matriz de conectividad sin exito. Vamos a probar a normalizar y añadir clusterización génica a la espacial que hemos realizado hasta ahora.
 
 ## Añadiendo la Agrupación Espacial + Génica
 
@@ -548,7 +550,9 @@ Entonces la "distancia" entre dos células será una combinación de:
 
 Y el objetivo es que ninguna variable domine la distancia total. 
 
-Tras varios intentos con distintos parámetros no se obtenía nada óptimo. Probamos a ponderar los genes escalados para que tengan mayor peso de cara al clustering, y jugando con los distintos parámetros finalmente obtuvimos algo con lo que creemos que podemos avanzar a los análisis de vecinos y otros:
+Tras varios intentos con distintos parámetros no se obtenía nada óptimo. 
+
+Probamos a dar color cada grupo, con el color del gen dominante en éste y añadimos una ponderación a los genes escalados para que tengan mayor peso de cara al clustering. Jugando con los distintos parámetros finalmente obtuvimos algo con lo que creemos que podemos avanzar a los análisis de vecinos y otros:
 
 ### Reajuste de colores para ver linfocitos y otras células más claramente
 ```py
@@ -631,14 +635,13 @@ import numpy as np
 ### Configuración inicial
 ```py
 tile_id = (2, 2, "D") 
-df = pd.read_csv(f"C:\\Users\\DB.224518\\Desktop\\practicas\\tiles_B1-2\\tile_{tile_id[0]}_{tile_id[1]}_subtiles\\tile_{tile_id[0]}_{tile_id[1]}_{tile_id[2]}.csv") 
-# df = pd.read_csv(f"C:\\Users\\DB.224518\\Desktop\\practicas\\tiles_B1-2\\tile_2_2.csv")
+df = pd.read_csv(f"C:\\Users\\user\\Escritorio\\practicas\\tiles_B1-2\\tile_{tile_id[0]}_{tile_id[1]}_subtiles\\tile_{tile_id[0]}_{tile_id[1]}_{tile_id[2]}.csv") 
 
 # Lista de genes de interés
 genes_interes = ['Gfap','Nefm','Aldh1l1','Aqp4','Foxp3','Cd8a', 'Map2','Aldoc', 'Sparcl1',
                  'Flt3','Itgae','Itgax','Ptprc','Dct','Mitf','Pmel','Slc7a5','P2ry12','Cd3e','Cd4',
                  'Tmem119','Cd24a','Itgam','Ly6g','Adgre1','Nsg2','Rbfox3','Trem2','Klrg1',
-                 'Nkx1-1','Mog','Olig1','Acta2','Fn1','Myh11','Pecam1'] # sin 
+                 'Nkx1-1','Mog','Olig1','Acta2','Fn1','Myh11','Pecam1']
 
 genes_existentes = [g for g in genes_interes if g in df.columns]
 if not genes_existentes:
@@ -730,7 +733,7 @@ def cluster_and_plot_scaled(df, genes_coloreados, distance_threshold=2.5, alpha_
     return df
 ```
 
-### Ejecución del cluster
+### Ejecutar la función
 ```py
 clustered = cluster_and_plot_scaled( 
     df_filtrado,
