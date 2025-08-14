@@ -757,36 +757,3 @@ clustered = cluster_and_plot_scaled(
 Se muestra la segmentación y debajo la imágen del DAPI con los nucleos correspondientes a esa SUBTILE.
 
 
-```py
-
-```
-
-```py
-
-```
-
-
-
-```py
-
-```
-
-
-```py
-
-```
-
-
-```py
-
-```
-
-
-```py
-
-```
-
-
-```py
-
-```
