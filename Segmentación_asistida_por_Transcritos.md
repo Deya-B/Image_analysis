@@ -757,3 +757,303 @@ clustered = cluster_and_plot_scaled(
 Se muestra la segmentación y debajo la imágen del DAPI con los nucleos correspondientes a esa SUBTILE.
 
 
+## Agrupación por tipo celular
+
+#### Módulos:
+```py
+import pandas as pd
+import numpy as np
+from sklearn.preprocessing import StandardScaler
+from sklearn.cluster import AgglomerativeClustering
+import alphashape
+from shapely.geometry import Polygon
+import matplotlib.pyplot as plt
+```
+
+#### Función
+```py
+def cluster_and_plot_subset(
+    df,
+    genes_coloreados,
+    genes_interes,
+    distance_threshold=6,
+    alpha_val=0.05,
+    peso_espacial=8,
+    expr_thr=0.0,          # umbral de “expresión positiva”
+    k_at_least=1,          # al menos k genes_interes positivos
+    min_pts_contour=10,     # mínimo de puntos para dibujar contorno
+    point_size=0.5
+):
+    # --- 1) Validación y filtrado de columnas ---
+    genes_validos = [g for g in genes_interes if g in df.columns]
+    if not genes_validos:
+        raise ValueError("Ninguno de los genes_interes está en el DataFrame.")
+
+    # --- 2) Filtrar FILAS: solo coordenadas con >=k genes por encima de expr_thr ---
+    presences = (df[genes_validos] > expr_thr)
+    mask = presences.sum(axis=1) >= k_at_least
+    df_sub = df.loc[mask, ['x','y'] + genes_validos].copy()
+    if df_sub.empty:
+        raise ValueError("Tras el filtrado no quedan puntos. Ajusta expr_thr o k_at_least.")
+
+    # --- 3) Preparar matrices ---
+    coords = df_sub[['x','y']].values
+    genes = df_sub[genes_validos].values
+
+    # Escalado
+    coords_scaled = StandardScaler().fit_transform(coords) * peso_espacial
+    genes_scaled  = StandardScaler().fit_transform(genes)
+
+    features = np.hstack([coords_scaled, genes_scaled])
+
+    # --- 4) Clustering jerárquico ---
+    clustering = AgglomerativeClustering(
+        n_clusters=None,
+        distance_threshold=distance_threshold,
+        linkage='average'
+    )
+    labels = clustering.fit_predict(features)
+    df_sub['cluster'] = labels
+    print(f"Nº clusters {genes_interes}: {df_sub['cluster'].nunique()}")
+
+    # --- 5) Plot: SOLO el subset ---
+    fig, ax = plt.subplots(figsize=(8,8))
+    ax.set_facecolor('white')
+
+    # Puntos por gen (solo en subset)
+    for gene in genes_validos:
+        color = genes_coloreados.get(gene, 'black')
+        sg = df_sub[df_sub[gene] > expr_thr]
+        if not sg.empty:
+            ax.scatter(sg['x'], sg['y'], s=point_size, color=color, label=gene, alpha=0.5)
+
+    # Contornos por cluster (dominante entre genes_validos)
+    for cl in sorted(df_sub['cluster'].unique()):
+        cluster_points = df_sub[df_sub['cluster'] == cl]
+        if len(cluster_points) < min_pts_contour:
+            continue
+
+        gene_counts = {g: (cluster_points[g] > expr_thr).sum() for g in genes_validos}
+        gen_dominante = max(gene_counts, key=gene_counts.get)
+        color_contorno = genes_coloreados.get(gen_dominante, 'black')
+
+        try:
+            pts = cluster_points[['x','y']].values
+            a = alphashape.alphashape(pts, alpha=alpha_val)
+            if a.is_empty:
+                continue
+            if isinstance(a, Polygon):
+                xs, ys = a.exterior.xy
+                ax.plot(xs, ys, color=color_contorno, linewidth=1.2)
+            else:
+                for geom in a.geoms:
+                    xs, ys = geom.exterior.xy
+                    ax.plot(xs, ys, color=color_contorno, linewidth=1.2)
+        except Exception as e:
+            print(f"Cluster {cl} alphashape error: {e}")
+
+    ax.set_xticks([]); ax.set_yticks([])
+    for sp in ax.spines.values():
+        sp.set_visible(False)
+    plt.legend(markerscale=5, fontsize=6)
+    fname = f"clusters_subset_{'_'.join(genes_validos)}.png"
+    plt.savefig(fname, dpi=300, transparent=True, bbox_inches='tight', pad_inches=0)
+    plt.show()
+
+    return df_sub
+```
+
+#### Ejecución de cada tipo celular:
+```py
+# T (helper/reg), B y NK
+genes_lymph = ['Cd4','Foxp3','Cd8a','Cd3e','Cd19', 'Klrg1', 'Nkx1-1', 'Ptprc']
+df_lymph = cluster_and_plot_subset(
+    df_filtrado,
+    genes_coloreados=genes_coloreados,
+    genes_interes=genes_lymph,
+    distance_threshold=7,
+    alpha_val=0.05,
+    expr_thr=0.0, # para datos binarios
+    min_pts_contour=5,
+    k_at_least=1
+)
+```
+
+Resultados:
+```py
+Nº clusters ['Cd4', 'Foxp3', 'Cd8a', 'Cd3e', 'Cd19', 'Klrg1', 'Nkx1-1', 'Ptprc']: 12
+```
+<img width="640" height="636" alt="image" src="https://github.com/user-attachments/assets/4e8b5380-b286-41dc-870b-7fac84832116" />
+
+
+```py
+# Melanoma
+genes_mel = ['Dct','Mitf','Pmel','Slc7a5']
+df_mel = cluster_and_plot_subset(
+    df_filtrado,
+    genes_coloreados=genes_coloreados,
+    genes_interes=genes_mel,
+    distance_threshold=15,
+    alpha_val=0.03,
+    expr_thr=0.0,
+    peso_espacial=40,
+    min_pts_contour=40
+)
+```
+
+Resultados:
+
+```py
+Nº clusters ['Dct', 'Mitf', 'Pmel', 'Slc7a5']: 62
+```
+<img width="640" height="636" alt="image" src="https://github.com/user-attachments/assets/fc94ad14-67bd-4c0b-bbe8-209abd835e39" />
+
+
+```py
+# Neuronas
+genes_neu = ['Map2','Nefm','Nsg2','Rbfox3', 'Trem2']
+df_neu = cluster_and_plot_subset(
+    df_filtrado,
+    genes_coloreados=genes_coloreados,
+    genes_interes=genes_neu,
+    distance_threshold=30,
+    alpha_val=0.03,
+    peso_espacial=55,
+    min_pts_contour=10
+)
+```
+
+Resultados:
+```py
+Nº clusters ['Map2', 'Nefm', 'Nsg2', 'Rbfox3', 'Trem2']: 31
+```
+<img width="640" height="636" alt="image" src="https://github.com/user-attachments/assets/a959abc8-8271-4005-bc43-490feaa6a014" />
+
+
+```py
+# Astrocitos
+genes_ast = ['Gfap','Aldh1l1','Aldoc','Aqp4', 'Sparcl1']
+df_ast = cluster_and_plot_subset(
+    df_filtrado,
+    genes_coloreados=genes_coloreados,
+    genes_interes=genes_ast,
+    distance_threshold=7,
+    alpha_val=0.03,
+    expr_thr=0.0,
+    k_at_least=1
+)
+```
+
+Resultados:
+```py
+Nº clusters ['Gfap', 'Aldh1l1', 'Aldoc', 'Aqp4', 'Sparcl1']: 39
+```
+<img width="640" height="636" alt="image" src="https://github.com/user-attachments/assets/4c571b9e-d1aa-4586-b218-c168c33fb3dc" />
+
+
+```py
+# Dendritic
+genes_den = ['Flt3','Itgae','Itgax']
+df_den = cluster_and_plot_subset(
+    df_filtrado,
+    genes_coloreados=genes_coloreados,
+    genes_interes=genes_den,
+    distance_threshold=8,
+    alpha_val=0.01,
+    peso_espacial=15,
+    min_pts_contour=3
+)
+```
+
+Resultados:
+```py
+Nº clusters ['Flt3', 'Itgae', 'Itgax']: 19
+```
+<img width="640" height="636" alt="image" src="https://github.com/user-attachments/assets/47f3163b-a12c-44c4-a741-67c7c02fe1b7" />
+
+
+```py
+# Microglia
+genes_mic = ['P2ry12','Tmem119']
+df_mic = cluster_and_plot_subset(
+    df_filtrado,
+    genes_coloreados=genes_coloreados,
+    genes_interes=genes_mic,
+    distance_threshold=7,
+    alpha_val=0.01,
+    peso_espacial=10,
+    min_pts_contour=5
+)
+```
+
+Resultados:
+```py
+Nº clusters ['P2ry12', 'Tmem119']: 12
+```
+<img width="640" height="636" alt="image" src="https://github.com/user-attachments/assets/18042ba8-cdb9-4b61-b4b5-65b03ccbf401" />
+
+
+```py
+# Mieloides
+genes_miel = ['Cd24a','Itgam', 'Ly6g', 'Adgre1']
+df_miel = cluster_and_plot_subset(
+    df_filtrado,
+    genes_coloreados=genes_coloreados,
+    genes_interes=genes_miel,
+    distance_threshold=8,
+    alpha_val=0.02,
+    peso_espacial=15,
+    min_pts_contour=5
+)
+```
+
+Resultados:
+```py
+Nº clusters ['Cd24a', 'Itgam', 'Ly6g', 'Adgre1']: 26
+```
+<img width="640" height="636" alt="image" src="https://github.com/user-attachments/assets/248458c5-c30e-40e8-9701-f5beea54bff7" />
+
+
+```py
+# Oligodendrocytes
+genes_oli = ['Mog','Olig1']
+df_oli = cluster_and_plot_subset(
+    df_filtrado,
+    genes_coloreados=genes_coloreados,
+    genes_interes=genes_oli,
+    distance_threshold=7,
+    alpha_val=0.03,
+    expr_thr=0.0,
+    k_at_least=1
+)
+```
+Resultados:
+```py
+Nº clusters ['Mog', 'Olig1']: 8
+```
+<img width="640" height="636" alt="image" src="https://github.com/user-attachments/assets/b7d97f92-6d31-4323-b022-d9a2ccd2b5c6" />
+
+
+```py
+# Vasculature
+genes_vas = ['Acta2','Fn1', 'Myh11', 'Pecam1']
+df_vas = cluster_and_plot_subset(
+    df_filtrado,
+    genes_coloreados=genes_coloreados,
+    genes_interes=genes_vas,
+    distance_threshold=6,
+    alpha_val=0.02,
+    peso_espacial=15,
+    min_pts_contour=6
+)
+```
+
+Resultados:
+```py
+Nº clusters ['Acta2', 'Fn1', 'Myh11', 'Pecam1']: 55
+```
+<img width="640" height="636" alt="image" src="https://github.com/user-attachments/assets/f8a38c29-ca03-4e44-98eb-e145526a5d8e" />
+
+
+
+
