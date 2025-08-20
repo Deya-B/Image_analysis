@@ -11,6 +11,9 @@ Para usar la segmentación de `AgglomerativeClustering` en CytoMAP es necesario 
 - ClusterID → número de cluster que sale del agglomerative clustering 
 - CellType → por ejemplo, el gen dominante en esa célula 
 - Marcadores → opcional, intensidades o 0/1 para cada gen (para análisis adicionales en CytoMAP) 
+
+:construction: En construcción... :construction:
+
 ```py
 
 ```
