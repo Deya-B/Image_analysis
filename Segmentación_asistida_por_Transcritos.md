@@ -22,6 +22,8 @@ Vamos a usar el algoritmo de sklearn [`aggomerativeClustering`](https://scikit-l
 
 ### Codigo para reformateo de datos
 
+Con el siguiente código generamos las `coordinate binary expression tables` que vamos a usar para el `aggomerativeClustering`.
+
 ```py
 from collections import defaultdict
 
