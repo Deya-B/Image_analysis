@@ -342,7 +342,6 @@ Vemos que a partir de 16 ventanas los histogramas dejan de ser bimodales y muest
 
 Por otro lado, las imágenes en las que se ha realizado una umbralización con ventanas inferiores a 12, generan un histograma muy similar, y los cambios entre ellas son muy mínimos. Aunque mirando con cuidado, (y quizás es más apreciable en la imágen de las máscaras) las ventanas de 3x3 y 3x4 son las que mejor realizan la umbralización sin perder la zona más oscura de la parte inferior de la imagen.
 
-
 ------------------------------------------------------------------------
 
 ## Detección y extracción de contornos
@@ -350,18 +349,21 @@ Por otro lado, las imágenes en las que se ha realizado una umbralización con v
 ### Extracción de contornos por el método de Canny
 
 Paso 1: Obtener imagen y pasarla a escala de grises
+
 ``` splus
 img = imread('Imagenes_P3\Bowie.jpg');
 I = rgb2gray(img);
 ```
 
 Paso 2: Definimos umbral y sigma para el detector de contornos
+
 ``` splus
 th = 0.1:0.1:0.6;
 sigma = 0.2:0.2:2;
 ```
 
 Paso 3: Creamos la función para plotear las multiples imágenes:
+
 ``` splus
 function ax = subplottight(m,n,p)
 % subplottight(m,n,p): márgenes compactos tipo subplot
@@ -385,6 +387,7 @@ end
 ```
 
 Paso 4: Extraemos, mediante dos bucles `for` anidados, los contornos con diferentes parámetros:
+
 ``` splus
 figure('Name','Contornos Canny');
 it = 0;
@@ -407,20 +410,17 @@ end
 
 **Resultado:**
 
-![](results/ex4_1.png)
+![](images3/ex4_1.png)
 
 **Observaciones:**
 
 > La función E = edge(I, 'canny', thresh, sigma); tiene 4 parámetros: 'I' y 'canny' son la imagen y el método a utilizar respectivamente 'Thresh' es un vector con los valores del umbral de detección de bordes.\
 > Vemos que a medida que aumentamos el umbral (threshold -th) nos volvemos más restrictivos, escogiendo unicamente los bordes más definidos. Mientras que con umbrales muy bajos obtenemos cosas que no forman parte del borde persé.\
-> Esto lo podemos observar tambien en la energía de los bordes, que va disminuyendo a medidad que aumentamos el umbral.
-> Por otro lado, 'Sigma' es la desviación típica del filtro gaussiano que aplica el algoritmo antes de calcular los gradiente. A medida que aumenta sigma, vemos que obtenemos una mejor conexión entre bordes, es decir, en una imagen con el mismo umbral pero mayor sigma los bordes parecerán más uniformes. Esto se debe a la mayor reducción de ruido.
+> Esto lo podemos observar tambien en la energía de los bordes, que va disminuyendo a medidad que aumentamos el umbral. Por otro lado, 'Sigma' es la desviación típica del filtro gaussiano que aplica el algoritmo antes de calcular los gradiente. A medida que aumenta sigma, vemos que obtenemos una mejor conexión entre bordes, es decir, en una imagen con el mismo umbral pero mayor sigma los bordes parecerán más uniformes. Esto se debe a la mayor reducción de ruido.
 >
 > Con lo que podemos concluir que dependiendo de que bordes nos interesa extraer, eligiremos el umbral. Por ejemplo, para extraer el contorno de la cabeza y los ojos eligiremos umbrales y sigma alto. Mientras que para extaer detalles de la cara, como la boca, nostrils y las orejas, necesitamos usar umbrales intermedios.
 
-
 ------------------------------------------------------------------------
-
 
 #### *El siguiente experimento es con la siguiente imágen de una muestra **citológica de microscopía óptica**.*
 
@@ -436,7 +436,7 @@ subplot (1,3,2), imshow(I); title('Imagen citología-BW');
 subplot (1,3,3), imhist(I); title('BW-Histograma');
 ```
 
-![](results/cyto1.png)
+![](images3/cyto1.png)
 
 **Paso 1:** Para esta imagen hizo falta el siguiente pre-procesado:
 
@@ -456,7 +456,7 @@ subplot (2,2,3), imhist(I); axis tight; title('Original Histogram');
 subplot (2,2,4), imhist(uint8(ima_proc)); axis tight; title('Modified Histogram');
 ```
 
-![](results/cyto2.png)
+![](images3/cyto2.png)
 
 **Paso 2:** Ajustamos la función de ploteo a la forma del nuevo set de imágenes:
 
@@ -514,7 +514,7 @@ end
 
 **Resultados:**
 
-![](results/cyto3.png)
+![](images3/cyto3.png)
 
 **Observaciones:**
 
